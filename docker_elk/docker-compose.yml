@@ -1,0 +1,113 @@
+version: '3.7'
+services:
+    rabbitmq_elk:
+        image: rabbitmq:3.8.9-management
+        restart: unless-stopped
+        container_name: rabbitmq_elk
+        hostname: rabbitmq_elk
+        ports:
+            - 5672:5672
+            - 15672:15672
+        networks:
+            irise-net:
+                ipv4_address: 172.21.0.2
+#        volumes:
+#            - C://datastore//rabbitmq//lib_rabbitmq//rabbitmq:/var/lib/rabbitmq
+#            - C://datastore//rabbitmq//etc_rabbitmq:/etc/rabbitmq
+
+    kibana:
+        image: kibana:7.9.2
+        restart: unless-stopped
+        container_name: kibana
+#        depends_on: {"elasticsearch": {"condition": "service_healthy"}}
+        environment:
+            xpack.security.enabled: "true"
+            ELASTICSEARCH_USERNAME: "elastic"
+            ELASTICSEARCH_PASSWORD: "elastic"
+            NODE_OPTIONS: "--max-old-space-size=2048"
+            JMX_PORT: "9001"
+        ports:
+            - 5601:5601
+            - 9001:9001
+        volumes:
+            - C://kibana:/usr/share/kibana/config/
+        networks:
+            irise-net:
+                ipv4_address: 172.21.0.4
+
+
+    elasticsearch:
+        image: elasticsearch:7.9.2
+        restart: unless-stopped
+        container_name: elasticsearch
+        environment:
+            - discovery.type=single-node
+            - node.name=es-sibir
+            - cluster.name=sibir-es-cluster
+            - xpack.security.enabled=true
+            - xpack.security.authc.api_key.enabled=true
+            - ELASTIC_PASSWORD=elastic
+            - "ES_JAVA_OPTS=-Xms512M -Xmx512M -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.port=8000 -Dcom.sun.management.jmxremote.rmi.port=8001 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
+            - path.repo=/usr/share/elasticsearch/backup
+            - bootstrap.memory_lock=true
+#            - java.rmi.server.hostname=elasticsearch
+#            - com.sun.management.jmxremote.local.only=false
+#            - com.sun.management.jmxremote.port=9000
+#            - com.sun.management.jmxremote.rmi.port=9000
+#            - com.sun.management.jmxremote.authenticate=false
+#            - com.sun.management.jmxremote.ssl=false
+        ulimits:
+            memlock:
+                soft: -1
+                hard: -1
+        volumes:
+            - C://datastore//elasticsearch//data:/usr/share/elasticsearch/data
+            - C://datastore//elasticsearch//backup:/usr/share/elasticsearch/backup
+        ports:
+            - 9210:9200
+            - 9300:9300
+            - 8000:8000
+            - 8001:8001
+        networks:
+            irise-net:
+                ipv4_address: 172.21.0.3
+#        healthcheck:
+#            test: curl -u elastic:elastic -s -f localhost:9210/_cat/health > /dev/null || exit 1
+#            interval: 30s
+#            timeout: 10s
+#            retries: 5
+
+
+    logstash:
+        image: logstash:7.9.2
+        container_name: logstash
+        hostname: logstash
+        ports:
+            - 9600:9600
+            - 8089:8089
+        environment:
+            - PIPELINE_BATCH_SIZE=1
+            - PIPELINE_BATCH_DELAY=10
+            - "LS_JAVA_OPTS=-Xmx2G -Xms2G"
+        volumes:
+            - C://logstash//pipeline:/usr/share/logstash/pipeline
+#            - C://logstash//logstash.conf:/usr/share/logstash/config/logstash.conf
+#            - C://logstash//config:/usr/share/logstash/config
+        links:
+            - elasticsearch:elasticsearch
+        networks:
+            irise-net:
+                ipv4_address: 172.21.0.9
+
+
+
+networks:
+  irise-net:
+    name: irise-net
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+      com.docker.network.bridge.name: irise-net
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
