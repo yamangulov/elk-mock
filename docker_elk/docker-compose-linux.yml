@@ -11,11 +11,15 @@ services:
         networks:
             irise-net:
                 ipv4_address: 172.21.0.2
+#        volumes:
+#            - /mnt/c/datastore/rabbitmq/lib_rabbitmq/rabbitmq:/var/lib/rabbitmq
+#            - /mnt/c/datastore/rabbitmq/etc_rabbitmq:/etc/rabbitmq
 
     kibana:
         image: kibana:7.9.2
         restart: unless-stopped
         container_name: kibana
+#        depends_on: {"elasticsearch": {"condition": "service_healthy"}}
         environment:
             xpack.security.enabled: "true"
             ELASTICSEARCH_USERNAME: "elastic"
@@ -26,7 +30,7 @@ services:
             - 5601:5601
             - 9001:9001
         volumes:
-            - C://kibana:/usr/share/kibana/config/
+            - /mnt/c/kibana:/usr/share/kibana/config/
         networks:
             irise-net:
                 ipv4_address: 172.21.0.4
@@ -43,27 +47,39 @@ services:
             - xpack.security.enabled=true
             - xpack.security.authc.api_key.enabled=true
             - ELASTIC_PASSWORD=elastic
-            - "ES_JAVA_OPTS=-Xms4G -Xmx4G"
+            - "ES_JAVA_OPTS=-Xms512M -Xmx512M -Djava.rmi.server.hostname=localhost -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=1099 -Dcom.sun.management.jmxremote.rmi.port=1099 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false"
             - path.repo=/usr/share/elasticsearch/backup
             - bootstrap.memory_lock=true
+#            - java.rmi.server.hostname=elasticsearch
+#            - com.sun.management.jmxremote.local.only=false
+#            - com.sun.management.jmxremote.port=9000
+#            - com.sun.management.jmxremote.rmi.port=9000
+#            - com.sun.management.jmxremote.authenticate=false
+#            - com.sun.management.jmxremote.ssl=false
         ulimits:
             memlock:
                 soft: -1
                 hard: -1
         volumes:
-            - C://datastore//elasticsearch//data:/usr/share/elasticsearch/data
-            - C://datastore//elasticsearch//backup:/usr/share/elasticsearch/backup
+            - /mnt/c/datastore/elasticsearch/data:/usr/share/elasticsearch/data
+            - /mnt/c/datastore/elasticsearch/backup:/usr/share/elasticsearch/backup
         ports:
             - 9210:9200
             - 9300:9300
+            - 8000:1099
         networks:
             irise-net:
                 ipv4_address: 172.21.0.3
+#        healthcheck:
+#            test: curl -u elastic:elastic -s -f localhost:9210/_cat/health > /dev/null || exit 1
+#            interval: 30s
+#            timeout: 10s
+#            retries: 5
+
 
     logstash:
         image: logstash:7.9.2
         container_name: logstash
-        restart: unless-stopped
         hostname: logstash
         ports:
             - 9600:9600
@@ -71,74 +87,17 @@ services:
         environment:
             - PIPELINE_BATCH_SIZE=1
             - PIPELINE_BATCH_DELAY=10
-            - "LS_JAVA_OPTS=-Xmx4G -Xms4G"
+            - "LS_JAVA_OPTS=-Xmx2G -Xms2G"
         volumes:
-            - C://logstash//pipeline:/usr/share/logstash/pipeline
+            - /mnt/c/logstash/pipeline:/usr/share/logstash/pipeline
+#            - /mnt/c/logstash/logstash.conf:/usr/share/logstash/config/logstash.conf
+#            - /mnt/c/logstash/config:/usr/share/logstash/config
         links:
             - elasticsearch:elasticsearch
         networks:
             irise-net:
                 ipv4_address: 172.21.0.9
 
-    grafana:
-        build: './config/grafana'
-        container_name: grafana
-        ports:
-            - 3000:3000
-        volumes:
-            - ./grafana:/var/lib/grafana
-        environment:
-            - GF_SECURITY_ADMIN_USER=admin
-            - GF_SECURITY_ADMIN_PASSWORD=admin
-        networks:
-            irise-net:
-                ipv4_address: 172.21.0.5
-                aliases:
-                    - grafana
-
-    prometheus:
-        image: prom/prometheus:latest
-        container_name: prometheus
-        restart: unless-stopped
-        user: "1000:1000"
-        volumes:
-            - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
-            - ./prometheus:/prometheus
-        command:
-            - '--config.file=/etc/prometheus/prometheus.yml'
-            - '--storage.tsdb.path=/prometheus'
-            - '--web.console.libraries=/etc/prometheus/console_libraries'
-            - '--web.console.templates=/etc/prometheus/consoles'
-            - '--web.enable-lifecycle'
-        ports:
-            - 9090:9090
-        networks:
-            irise-net:
-                ipv4_address: 172.21.0.6
-
-    eexporter:
-        container_name: eexporter
-        image: quay.io/prometheuscommunity/elasticsearch-exporter:latest
-        command:
-            - '--es.uri=http://elastic:elastic@172.21.0.3:9200'
-        restart: always
-        ports:
-            - "9114:9114"
-        networks:
-            irise-net:
-                ipv4_address: 172.21.0.7
-
-    lexporter:
-        container_name: lexporter
-        image: bitnami/logstash-exporter:latest
-        command:
-            - '--web.listen-address=:9198'
-            - '--logstash.endpoint=http://172.21.0.9:9600'
-        ports:
-            - "9198:9198"
-        networks:
-            irise-net:
-                ipv4_address: 172.21.0.8
 
 
 networks:

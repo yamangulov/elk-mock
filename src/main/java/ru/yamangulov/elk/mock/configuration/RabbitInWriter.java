@@ -23,7 +23,7 @@ public class RabbitInWriter {
         this.rabbitTemplate = rabbitTemplate;
     }
 
-    @Scheduled(fixedRateString = "10")
+    @Scheduled(fixedRateString = "100")
     private void writeFileToRabbit() throws IOException {
         Path path = Paths.get(pathToFile.replace("classpath:", "./src/main/resources"));
         String content = Files.readString(path);
